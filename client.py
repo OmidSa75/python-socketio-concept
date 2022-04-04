@@ -1,98 +1,86 @@
+# import asyncio
+# import concurrent.futures
+# import logging
+# import threading
+#
+# import socketio
+#
+# logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(asctime)s :: %(message)s')
+# sio = socketio.AsyncClient(logger=True)
+#
+#
+# @sio.event
+# async def connect():
+#     logging.info("Connected to server")
+#
+#
+# @sio.event
+# async def disconnect():
+#     logging.info("Disconnected from server")
+#
+#
+# async def run():
+#     await sio.connect("http://0.0.0.0:9000")
+#     await sio.wait()
+#
+#
+# def run_(loop):
+#     asyncio.run_coroutine_threadsafe(run(), loop)
+#
+#
+# async def run_thread_safe():
+#     loop = asyncio.get_event_loop()
+#     executor = concurrent.futures.ThreadPoolExecutor()
+#     await loop.run_in_executor(executor, run_, loop)
+#
+#
+# # asyncio.run(run_thread_safe())
+# # threading.Thread(target=asyncio.run, args=([run()])).start()
+# loop = asyncio.new_event_loop()
+# # executor = concurrent.futures.ThreadPoolExecutor()
+# # asyncio.run(loop.run_in_executor(executor, run_, loop))
+# future = asyncio.run_coroutine_threadsafe(run(), loop)
+# # assert future.result(3.0) == 3
+#
+# # coro = asyncio.sleep(1, result=3)
+# # future = loop.call_soon_threadsafe(coro)
+# # assert future.result(3) == 3.0
+
+'''New main'''
 import asyncio
-import atexit
-import json
+import concurrent.futures
 import logging
 import threading
-from pprint import pformat
-import time
 
 import socketio
-from aiohttp import web
-# import nest_asyncio
-# nest_asyncio.apply()
+
+logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(asctime)s :: %(message)s')
+sio = socketio.AsyncClient(logger=True)
 
 
-class SocketClient:
-    client_loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(client_loop)
-    sio = socketio.AsyncClient(logger=True)
+@sio.event
+async def connect():
+    logging.info("Connected to server")
 
-    async def add_camera(self, cam: dict):
-        await self.sio.emit('add_camera', cam, callback=self.callback_fn())
-        # task = asyncio.create_task(self.sio.emit('add_camera', cam))
-        logging.info("Sent Message")
-        return
 
-    @staticmethod
-    def callback_fn():
-        logging.info("\033[1;34m" + "this is the callback function "+"\033[0;0m")
+@sio.event
+async def disconnect():
+    logging.info("Disconnected from server")
 
-    async def edit_camera(self, cam: dict):
-        await self.sio.emit('edit_camera', cam)
 
-    async def remove_camera(self, cam: dict):
-        await self.sio.emit('remove_camera', cam)
+async def run():
+    await sio.connect("http://0.0.0.0:9000")
+    await sio.wait()
 
-    async def sending_cameras(self):
-        while True:
-            time.sleep(5)
-            await self.add_camera({'cam':'OmidSa75'})
 
-    def call_backs(self):
-        @self.sio.event
-        async def connect():
-            logging.info(f"Socket connected")
-            # await self.sio.emit('send_message', {'message':"I am client"})
-
-        @self.sio.event
-        async def response(data):
-            print('message received with ', data)
-
-        @self.sio.event
-        async def disconnect():
-            logging.info(f"Socket disconnected")
-
-        @self.sio.on('execute')
-        async def execute():
-            logging.info("Executing the process . . .")
-            await self.execute()
-
-        @self.sio.on('show_logs')
-        async def show_logs(logs):
-            logging.info(pformat(logs))
-
-        @self.sio.on('send_message')
-        async def send_message(data):
-            if data:
-                logging.info('Client received a message: '+ str(data))
-            await asyncio.sleep(1)
-            await self.sio.emit('send_message', {'message': "I am client"})
-
-    async def execute(self):
-        await self.sio.emit('execute')
-
-    async def terminate(self):
-        await self.sio.emit('terminate')
-
-    async def run(self):
-        # self.call_backs()
-        await self.sio.connect("http://localhost:8001")
-        await self.sio.wait()
-
-    def run_from_thread(self):
-        self.client_loop.run_until_complete(self.run())
+def start_background_loop(loop: asyncio.AbstractEventLoop) -> None:
+    asyncio.set_event_loop(loop)
+    loop.run_forever()
 
 
 if __name__ == '__main__':
-    logging.basicConfig(format="%(asctime)s - %(filename)s|%(funcName)s - %(levelname)s - %(message)s",
-                        level=logging.DEBUG)
-    with open('cameras.json', 'r') as f:
-        cam_samples = json.load(f)
+    loop = asyncio.new_event_loop()
+    t = threading.Thread(target=start_background_loop, args=(loop,), daemon=True)
+    t.start()
 
-    import threading
-    client = SocketClient()
-    client.call_backs()
-    threading.Thread(target=client.run_from_thread).start()
-    # threading.Thread(target=asyncio.run, args=[(client.run())]).start()
-    # asyncio.run(client.run())
-
+    task = asyncio.run_coroutine_threadsafe(run(), loop)
